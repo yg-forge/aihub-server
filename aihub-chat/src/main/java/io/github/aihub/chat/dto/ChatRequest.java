@@ -1,0 +1,2 @@
+package io.github.aihub.chat.dto;import java.util.*;import jakarta.validation.constraints.*;
+public record ChatRequest(@NotBlank String model,@NotEmpty List<Message> messages,Double temperature,Integer maxTokens){public record Message(@NotBlank String role,@NotBlank String content){}}

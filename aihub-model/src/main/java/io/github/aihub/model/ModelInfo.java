@@ -1,0 +1,1 @@
+package io.github.aihub.model;public record ModelInfo(String model,String provider,boolean enabled){}

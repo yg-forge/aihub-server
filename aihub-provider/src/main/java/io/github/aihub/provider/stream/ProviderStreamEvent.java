@@ -1,0 +1,1 @@
+package io.github.aihub.provider.stream;public record ProviderStreamEvent(String type,String provider,String model,String delta,String finishReason){}

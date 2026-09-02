@@ -1,0 +1,2 @@
+package io.github.aihub.provider.router;import io.github.aihub.provider.spi.*;import java.util.*;import org.springframework.stereotype.Component;
+@Component public class ModelRouter{private final List<AIProvider> providers;public ModelRouter(List<AIProvider> p){providers=p;}public AIProvider route(String model){return providers.stream().filter(p->p.supports(model)).findFirst().orElseThrow(()->new IllegalArgumentException("Unsupported model: "+model));}}

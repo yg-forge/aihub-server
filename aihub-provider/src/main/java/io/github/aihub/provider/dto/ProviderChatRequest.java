@@ -1,0 +1,2 @@
+package io.github.aihub.provider.dto;import java.util.*;
+public record ProviderChatRequest(String model,List<Message> messages,Double temperature,Integer maxTokens){public record Message(String role,String content){}}

@@ -1,0 +1,2 @@
+package io.github.aihub.bootstrap;import org.springframework.boot.*;import org.springframework.boot.autoconfigure.*;
+@SpringBootApplication(scanBasePackages="io.github.aihub")public class AIHubApplication{public static void main(String[] args){SpringApplication.run(AIHubApplication.class,args);}}

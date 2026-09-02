@@ -1,0 +1,1 @@
+package io.github.aihub.chat.dto;public record ChatStreamEvent(String type,String provider,String model,String delta,String finishReason){}

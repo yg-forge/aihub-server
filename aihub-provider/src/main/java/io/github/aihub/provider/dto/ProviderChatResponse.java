@@ -1,0 +1,1 @@
+package io.github.aihub.provider.dto;public record ProviderChatResponse(String provider,String model,String content,String finishReason){}
