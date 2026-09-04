@@ -8,10 +8,18 @@ services:
     dockerContext: .
     healthCheckPath: /actuator/health
     envVars:
-      - key: DB_URL
+      - key: DB_HOST
         fromDatabase:
           name: aihub-postgres
-          property: connectionString
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: aihub-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: aihub-postgres
+          property: database
       - key: POSTGRES_USER
         fromDatabase:
           name: aihub-postgres
@@ -21,13 +29,13 @@ services:
           name: aihub-postgres
           property: password
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
       - key: OPENAI_BASE_URL
         value: https://api.openai.com/v1
       - key: OPENAI_API_KEY
         sync: false
       - key: PORT
-        value: 10000
+        value: "10000"
 
 databases:
   - name: aihub-postgres
