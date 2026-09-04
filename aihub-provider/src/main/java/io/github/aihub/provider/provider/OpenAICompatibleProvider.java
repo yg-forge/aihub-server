@@ -3,7 +3,7 @@ import io.github.aihub.provider.dto.*;import io.github.aihub.provider.spi.*;impo
 @Component
 public class OpenAICompatibleProvider implements AIProvider{
  private final WebClient client; private final ObjectMapper json;
- public OpenAICompatibleProvider(@Value("${aihub.providers.openai.base-url:https://api.openai.com/v1}") String base,@Value("${aihub.providers.openai.api-key:}") String key,ObjectMapper json){this.client=WebClient.builder().baseUrl(base.replaceAll("/+\$","")).defaultHeader(HttpHeaders.AUTHORIZATION,"Bearer "+key).build();this.json=json;}
+ public OpenAICompatibleProvider(@Value("${aihub.providers.openai.base-url:https://api.openai.com/v1}") String base,@Value("${aihub.providers.openai.api-key:}") String key,ObjectMapper json){this.client=WebClient.builder().baseUrl(base.replaceAll("/+$","")).defaultHeader(HttpHeaders.AUTHORIZATION,"Bearer "+key).build();this.json=json;}
  public String name(){return "openai-compatible";}
  public boolean supports(String m){return m!=null&&(m.startsWith("gpt-")||m.startsWith("openai:"));}
  private String model(String m){return m.startsWith("openai:")?m.substring(7):m;}
