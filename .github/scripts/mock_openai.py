@@ -34,9 +34,9 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
             chunks = [
-                {"choices": [{"delta": {"content": "CI stream "}, "finish_reason": None}]},
-                {"choices": [{"delta": {"content": "smoke test passed"}, "finish_reason": None}]},
-                {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+                {"model": model, "choices": [{"delta": {"content": "CI stream "}, "finish_reason": None}]},
+                {"model": model, "choices": [{"delta": {"content": "smoke test passed"}, "finish_reason": None}]},
+                {"model": model, "choices": [{"delta": {}, "finish_reason": "stop"}]},
             ]
             for chunk in chunks:
                 payload = f"data: {json.dumps(chunk)}\n\n".encode()
