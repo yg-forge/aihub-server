@@ -1,7 +1,11 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import time
+
 
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     def do_GET(self):
         if self.path == "/health":
             payload = b'{"status":"UP"}'
@@ -17,11 +21,42 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/v1/chat/completions":
             self.send_response(404)
+            self.send_header("Content-Length", "0")
             self.end_headers()
             return
+
         length = int(self.headers.get("Content-Length", "0"))
         body = json.loads(self.rfile.read(length) or b"{}")
         model = body.get("model", "gpt-ci-smoke")
+
+        if body.get("stream"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+
+            chunks = [
+                {"model": model, "choices": [{"delta": {"content": "CI stream "}, "finish_reason": None}]},
+                {"model": model, "choices": [{"delta": {"content": "smoke test passed"}, "finish_reason": None}]},
+                {"model": model, "choices": [{"delta": {}, "finish_reason": "stop"}]},
+            ]
+            for chunk in chunks:
+                payload = f"data: {json.dumps(chunk)}\n\n".encode()
+                self.wfile.write(f"{len(payload):X}\r\n".encode())
+                self.wfile.write(payload)
+                self.wfile.write(b"\r\n")
+                self.wfile.flush()
+                time.sleep(0.05)
+
+            payload = b"data: [DONE]\n\n"
+            self.wfile.write(f"{len(payload):X}\r\n".encode())
+            self.wfile.write(payload)
+            self.wfile.write(b"\r\n")
+            self.wfile.write(b"0\r\n\r\n")
+            self.wfile.flush()
+            return
+
         response = {
             "id": "chatcmpl-ci-smoke",
             "object": "chat.completion",
@@ -41,5 +76,6 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         pass
+
 
 HTTPServer(("127.0.0.1", 18080), Handler).serve_forever()
