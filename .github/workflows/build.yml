@@ -2,7 +2,7 @@ name: AIHub CI
 
 on:
   push:
-    branches: ["main", "ci-smoke-test"]
+    branches: ["main", "ci-smoke-test", "ci-hardening"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
@@ -46,6 +46,9 @@ jobs:
           java -version
           mvn -version
 
+      - name: Run Maven tests
+        run: mvn -B -ntp test
+
       - name: Build AIHub
         run: mvn -B -ntp clean package -DskipTests
 
@@ -87,24 +90,8 @@ jobs:
           cat server.log || true
           exit 1
 
-      - name: Smoke test auth and chat
-        run: |
-          set -e
-          curl -fsS -X POST http://localhost:8080/api/v1/auth/register \
-            -H 'Content-Type: application/json' \
-            -d '{"username":"ci-user","password":"CiTestPassword123!"}'
-          echo
-          login="$(curl -fsS -X POST http://localhost:8080/api/v1/auth/login \
-            -H 'Content-Type: application/json' \
-            -d '{"username":"ci-user","password":"CiTestPassword123!"}')"
-          echo "$login" | sed 's/"accessToken":"[^"]*"/"accessToken":"***"/'
-          token="$(printf '%s' "$login" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["accessToken"])')"
-          response="$(curl -fsS -X POST http://localhost:8080/api/v1/ai/chat \
-            -H 'Content-Type: application/json' \
-            -H "Authorization: Bearer $token" \
-            -d '{"model":"gpt-ci-smoke","messages":[{"role":"user","content":"hello"}]}')"
-          echo "$response"
-          printf '%s' "$response" | grep -q 'CI chat smoke test passed'
+      - name: Smoke test auth, authorization, chat and stream
+        run: bash .github/scripts/ci_smoke_harden.sh
 
       - name: Upload server log on failure
         if: failure()
