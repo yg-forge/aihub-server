@@ -4,6 +4,8 @@ import time
 
 
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     def do_GET(self):
         if self.path == "/health":
             payload = b'{"status":"UP"}'
@@ -19,6 +21,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/v1/chat/completions":
             self.send_response(404)
+            self.send_header("Content-Length", "0")
             self.end_headers()
             return
 
@@ -30,7 +33,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
-            self.send_header("Connection", "close")
+            self.send_header("Transfer-Encoding", "chunked")
             self.end_headers()
 
             chunks = [
@@ -40,12 +43,18 @@ class Handler(BaseHTTPRequestHandler):
             ]
             for chunk in chunks:
                 payload = f"data: {json.dumps(chunk)}\n\n".encode()
+                self.wfile.write(f"{len(payload):X}\r\n".encode())
                 self.wfile.write(payload)
+                self.wfile.write(b"\r\n")
                 self.wfile.flush()
                 time.sleep(0.05)
-            self.wfile.write(b"data: [DONE]\n\n")
+
+            payload = b"data: [DONE]\n\n"
+            self.wfile.write(f"{len(payload):X}\r\n".encode())
+            self.wfile.write(payload)
+            self.wfile.write(b"\r\n")
+            self.wfile.write(b"0\r\n\r\n")
             self.wfile.flush()
-            self.close_connection = True
             return
 
         response = {
