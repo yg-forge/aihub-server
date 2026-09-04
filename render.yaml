@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: aihub-server
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DB_URL
+        fromDatabase:
+          name: aihub-postgres
+          property: connectionString
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: aihub-postgres
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: aihub-postgres
+          property: password
+      - key: JWT_SECRET
+        sync: false
+      - key: OPENAI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PORT
+        value: 10000
+
+databases:
+  - name: aihub-postgres
+    plan: basic-256mb
+    region: oregon
+    postgresMajorVersion: "16"
