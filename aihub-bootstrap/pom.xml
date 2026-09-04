@@ -62,12 +62,12 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
-              <version>10.22.0</version>
+              <version>11.20.3</version>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgesql</artifactId>
-             <version>10.22.0</version>
+             <version>11.20.3</version>
         </dependency>
     </dependencies>
     <build>
