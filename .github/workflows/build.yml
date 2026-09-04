@@ -2,7 +2,7 @@ name: AIHub CI
 
 on:
   push:
-    branches: ["main", "ci-smoke-test", "ci-hardening"]
+    branches: ["main"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
