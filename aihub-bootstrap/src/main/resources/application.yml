@@ -3,6 +3,9 @@ spring:
     url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:aihub}}
     username: ${POSTGRES_USER:aihub}
     password: ${POSTGRES_PASSWORD:aihub}
+    hikari:
+      data-source-properties:
+        sslmode: require
   jpa:
     hibernate:
       ddl-auto: validate
