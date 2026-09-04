@@ -1,5 +1,7 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import time
+
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -19,9 +21,32 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             return
+
         length = int(self.headers.get("Content-Length", "0"))
         body = json.loads(self.rfile.read(length) or b"{}")
         model = body.get("model", "gpt-ci-smoke")
+
+        if body.get("stream"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+
+            chunks = [
+                {"choices": [{"delta": {"content": "CI stream "}, "finish_reason": None}]},
+                {"choices": [{"delta": {"content": "smoke test passed"}, "finish_reason": None}]},
+                {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+            ]
+            for chunk in chunks:
+                payload = f"data: {json.dumps(chunk)}\n\n".encode()
+                self.wfile.write(payload)
+                self.wfile.flush()
+                time.sleep(0.05)
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            return
+
         response = {
             "id": "chatcmpl-ci-smoke",
             "object": "chat.completion",
@@ -41,5 +66,6 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         pass
+
 
 HTTPServer(("127.0.0.1", 18080), Handler).serve_forever()
