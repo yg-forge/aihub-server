@@ -71,6 +71,7 @@ jobs:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/aihub
           SPRING_DATASOURCE_USERNAME: aihub
           SPRING_DATASOURCE_PASSWORD: aihub
+          SPRING_DATASOURCE_HIKARI_DATA_SOURCE_PROPERTIES_SSLMODE: disable
           OPENAI_BASE_URL: http://127.0.0.1:18080/v1
           OPENAI_API_KEY: ci-smoke-test-key
           JWT_SECRET: ci-smoke-test-jwt-secret-256-bit-minimum-length-value
