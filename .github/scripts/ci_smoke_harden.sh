@@ -31,7 +31,7 @@ response="$(curl -fsS -X POST "$BASE_URL/api/v1/ai/chat" \
 echo "$response"
 printf '%s' "$response" | grep -q 'CI chat smoke test passed'
 
-stream_code="$(curl -sS -N -o stream-response.txt -w '%{http_code}' -X POST "$BASE_URL/api/v1/ai/chat/stream" \
+stream_code="$(curl --max-time 20 -sS -N -o stream-response.txt -w '%{http_code}' -X POST "$BASE_URL/api/v1/ai/chat/stream" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $token" \
   -d '{"model":"gpt-ci-smoke","messages":[{"role":"user","content":"hello"}]}')"
