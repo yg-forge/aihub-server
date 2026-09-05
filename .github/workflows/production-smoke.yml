@@ -1,0 +1,79 @@
+name: AIHub Production Smoke Test
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-smoke:
+    name: Test Render production API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Render deployment
+        run: sleep 120
+
+      - name: Check production health
+        run: |
+          curl --fail --silent --show-error \
+            "https://aihub-server-jipl.onrender.com/actuator/health"
+
+      - name: Register temporary test user
+        env:
+          USERNAME: "ci-prod-${{ github.run_id }}"
+          PASSWORD: "CiProd-${{ github.run_id }}-Test@123456"
+        run: |
+          curl --fail --silent --show-error \
+            -X POST "https://aihub-server-jipl.onrender.com/api/v1/auth/register" \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}" \
+            > register.json
+          cat register.json
+
+      - name: Login and obtain JWT
+        env:
+          USERNAME: "ci-prod-${{ github.run_id }}"
+          PASSWORD: "CiProd-${{ github.run_id }}-Test@123456"
+        run: |
+          curl --fail --silent --show-error \
+            -X POST "https://aihub-server-jipl.onrender.com/api/v1/auth/login" \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}" \
+            > login.json
+          TOKEN=$(jq -r '.data.accessToken' login.json)
+          test -n "$TOKEN" && test "$TOKEN" != "null"
+          echo "JWT login succeeded"
+          printf '%s' "$TOKEN" > token.txt
+
+      - name: Test production AI chat
+        run: |
+          TOKEN=$(cat token.txt)
+          curl --fail --silent --show-error \
+            -X POST "https://aihub-server-jipl.onrender.com/api/v1/ai/chat" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $TOKEN" \
+            -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: AIHub production smoke test passed"}]}' \
+            > chat.json
+          cat chat.json
+          jq -e '.data.content != null and (.data.content | length) > 0' chat.json >/dev/null
+          echo "Production AI chat succeeded"
+
+      - name: Test production streaming chat
+        run: |
+          TOKEN=$(cat token.txt)
+          curl --fail --silent --show-error --no-buffer \
+            -X POST "https://aihub-server-jipl.onrender.com/api/v1/ai/chat/stream" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $TOKEN" \
+            -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: stream ok"}]}' \
+            > stream.txt
+          cat stream.txt
+          grep -q 'done' stream.txt
+          echo "Production streaming chat succeeded"
+
+      - name: Cleanup token file
+        if: always()
+        run: rm -f token.txt login.json register.json chat.json stream.txt
