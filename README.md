@@ -61,3 +61,6 @@ The first registered user is `SUPER_ADMIN`, which can pass the current `chat:use
 
 ## Important limitation
 This package was repaired by static source inspection because Maven is not installed in the current execution environment. It has not been proven by an actual `mvn clean package` run here. The next engineering step is real compilation in an environment with Java 21 and Maven, followed by test-driven fixes.
+
+## CI trigger
+Production smoke validation trigger.
