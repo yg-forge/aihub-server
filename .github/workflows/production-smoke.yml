@@ -37,16 +37,17 @@ jobs:
 
       - name: Register temporary test user
         env:
-          USERNAME: "ci-prod-${{ github.run_id }}"
-          PASSWORD: "CiProd-${{ github.run_id }}-Test@123456"
+          USERNAME: "ci-prod-${{ github.run_id }}-${{ github.run_attempt }}"
+          PASSWORD: "CiProd-${{ github.run_id }}-${{ github.run_attempt }}-Test@123456"
         run: |
           curl --fail --silent --show-error -X POST "$PRODUCTION_URL/api/v1/auth/register" -H "Content-Type: application/json" -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}" > register.json
           cat register.json
+          jq -e '.success == true' register.json >/dev/null
 
       - name: Login and obtain JWT
         env:
-          USERNAME: "ci-prod-${{ github.run_id }}"
-          PASSWORD: "CiProd-${{ github.run_id }}-Test@123456"
+          USERNAME: "ci-prod-${{ github.run_id }}-${{ github.run_attempt }}"
+          PASSWORD: "CiProd-${{ github.run_id }}-${{ github.run_attempt }}-Test@123456"
         run: |
           curl --fail --silent --show-error -X POST "$PRODUCTION_URL/api/v1/auth/login" -H "Content-Type: application/json" -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}" > login.json
           TOKEN=$(jq -r '.data.accessToken' login.json)
@@ -59,11 +60,20 @@ jobs:
           set +e
           TOKEN=$(cat token.txt)
           for i in $(seq 1 20); do
-            HTTP_CODE=$(curl --silent --show-error -X POST "$PRODUCTION_URL/api/v1/ai/chat" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: AIHub production smoke test passed"}]}' -o chat.json -w '%{http_code}')
+            HTTP_CODE=$(curl --silent --show-error -X POST "$PRODUCTION_URL/api/v1/ai/chat" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: AIHub production smoke test passed"}]}' -D chat.headers -o chat.json -w '%{http_code}')
             echo "Production AI chat HTTP status (attempt $i/20): $HTTP_CODE"
+            echo "Response headers:"
+            cat chat.headers
+            echo "Response body:"
             cat chat.json
             if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
               jq -e '.data.content != null and (.data.content | length) > 0' chat.json >/dev/null && { echo "Production AI chat succeeded"; exit 0; }
+            elif [ "$HTTP_CODE" = "429" ]; then
+              echo "DIAGNOSIS: AI provider returned HTTP 429 (rate limit / quota). Authentication reached the AI provider; this is not a 403 authorization failure."
+              exit 2
+            elif [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+              echo "DIAGNOSIS: HTTP $HTTP_CODE returned before a successful AI response. Inspect response headers/body and Render request logs; do not classify this as an AI provider 429."
+              exit 1
             fi
             echo "Chat not ready yet; retrying in 15s..."
             sleep 15
@@ -76,12 +86,21 @@ jobs:
           set +e
           TOKEN=$(cat token.txt)
           for i in $(seq 1 20); do
-            HTTP_CODE=$(curl --silent --show-error --no-buffer -X POST "$PRODUCTION_URL/api/v1/ai/chat/stream" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: stream ok"}]}' -o stream.txt -w '%{http_code}')
+            HTTP_CODE=$(curl --silent --show-error --no-buffer -X POST "$PRODUCTION_URL/api/v1/ai/chat/stream" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: stream ok"}]}' -D stream.headers -o stream.txt -w '%{http_code}')
             echo "Production streaming chat HTTP status (attempt $i/20): $HTTP_CODE"
+            echo "Response headers:"
+            cat stream.headers
+            echo "Response body:"
             cat stream.txt
             if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ] && grep -q 'done' stream.txt; then
               echo "Production streaming chat succeeded"
               exit 0
+            elif [ "$HTTP_CODE" = "429" ]; then
+              echo "DIAGNOSIS: AI provider returned HTTP 429 during streaming (rate limit / quota)."
+              exit 2
+            elif [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+              echo "DIAGNOSIS: HTTP $HTTP_CODE returned during streaming. Inspect response headers/body and Render request logs."
+              exit 1
             fi
             echo "Streaming chat not ready yet; retrying in 15s..."
             sleep 15
@@ -91,4 +110,4 @@ jobs:
 
       - name: Cleanup token file
         if: always()
-        run: rm -f token.txt login.json register.json chat.json stream.txt
+        run: rm -f token.txt login.json register.json chat.json chat.headers stream.txt stream.headers
