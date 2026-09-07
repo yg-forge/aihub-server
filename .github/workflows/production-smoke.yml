@@ -50,27 +50,41 @@ jobs:
 
       - name: Test production AI chat
         run: |
+          set +e
           TOKEN=$(cat token.txt)
-          curl --fail --silent --show-error \
+          HTTP_CODE=$(curl --silent --show-error \
             -X POST "https://aihub-server-jipl.onrender.com/api/v1/ai/chat" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $TOKEN" \
             -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: AIHub production smoke test passed"}]}' \
-            > chat.json
+            -o chat.json -w '%{http_code}')
+          echo "Production AI chat HTTP status: $HTTP_CODE"
+          echo "Production AI chat response body:"
           cat chat.json
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "Production AI chat failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
           jq -e '.data.content != null and (.data.content | length) > 0' chat.json >/dev/null
           echo "Production AI chat succeeded"
 
       - name: Test production streaming chat
         run: |
+          set +e
           TOKEN=$(cat token.txt)
-          curl --fail --silent --show-error --no-buffer \
+          HTTP_CODE=$(curl --silent --show-error --no-buffer \
             -X POST "https://aihub-server-jipl.onrender.com/api/v1/ai/chat/stream" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $TOKEN" \
             -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: stream ok"}]}' \
-            > stream.txt
+            -o stream.txt -w '%{http_code}')
+          echo "Production streaming chat HTTP status: $HTTP_CODE"
+          echo "Production streaming chat response body:"
           cat stream.txt
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "Production streaming chat failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
           grep -q 'done' stream.txt
           echo "Production streaming chat succeeded"
 
