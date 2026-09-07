@@ -8,29 +8,39 @@ on:
 permissions:
   contents: read
 
+env:
+  PRODUCTION_URL: https://aihub-server-jipl.onrender.com
+
 jobs:
   production-smoke:
     name: Test Render production API
     runs-on: ubuntu-latest
     steps:
       - name: Wait for Render deployment
-        run: sleep 120
+        run: |
+          echo "Waiting for Render deployment to start..."
+          sleep 120
 
       - name: Check production health
         run: |
-          curl --fail --silent --show-error \
-            "https://aihub-server-jipl.onrender.com/actuator/health"
+          for i in $(seq 1 20); do
+            if curl --fail --silent --show-error "$PRODUCTION_URL/actuator/health"; then
+              echo
+              echo "Production health is UP"
+              exit 0
+            fi
+            echo "Health check not ready yet (attempt $i/20), waiting 15s..."
+            sleep 15
+          done
+          echo "Production health check timed out"
+          exit 1
 
       - name: Register temporary test user
         env:
           USERNAME: "ci-prod-${{ github.run_id }}"
           PASSWORD: "CiProd-${{ github.run_id }}-Test@123456"
         run: |
-          curl --fail --silent --show-error \
-            -X POST "https://aihub-server-jipl.onrender.com/api/v1/auth/register" \
-            -H "Content-Type: application/json" \
-            -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}" \
-            > register.json
+          curl --fail --silent --show-error -X POST "$PRODUCTION_URL/api/v1/auth/register" -H "Content-Type: application/json" -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}" > register.json
           cat register.json
 
       - name: Login and obtain JWT
@@ -38,11 +48,7 @@ jobs:
           USERNAME: "ci-prod-${{ github.run_id }}"
           PASSWORD: "CiProd-${{ github.run_id }}-Test@123456"
         run: |
-          curl --fail --silent --show-error \
-            -X POST "https://aihub-server-jipl.onrender.com/api/v1/auth/login" \
-            -H "Content-Type: application/json" \
-            -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}" \
-            > login.json
+          curl --fail --silent --show-error -X POST "$PRODUCTION_URL/api/v1/auth/login" -H "Content-Type: application/json" -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}" > login.json
           TOKEN=$(jq -r '.data.accessToken' login.json)
           test -n "$TOKEN" && test "$TOKEN" != "null"
           echo "JWT login succeeded"
@@ -52,41 +58,36 @@ jobs:
         run: |
           set +e
           TOKEN=$(cat token.txt)
-          HTTP_CODE=$(curl --silent --show-error \
-            -X POST "https://aihub-server-jipl.onrender.com/api/v1/ai/chat" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $TOKEN" \
-            -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: AIHub production smoke test passed"}]}' \
-            -o chat.json -w '%{http_code}')
-          echo "Production AI chat HTTP status: $HTTP_CODE"
-          echo "Production AI chat response body:"
-          cat chat.json
-          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
-            echo "Production AI chat failed with HTTP $HTTP_CODE"
-            exit 1
-          fi
-          jq -e '.data.content != null and (.data.content | length) > 0' chat.json >/dev/null
-          echo "Production AI chat succeeded"
+          for i in $(seq 1 20); do
+            HTTP_CODE=$(curl --silent --show-error -X POST "$PRODUCTION_URL/api/v1/ai/chat" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: AIHub production smoke test passed"}]}' -o chat.json -w '%{http_code}')
+            echo "Production AI chat HTTP status (attempt $i/20): $HTTP_CODE"
+            cat chat.json
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+              jq -e '.data.content != null and (.data.content | length) > 0' chat.json >/dev/null && { echo "Production AI chat succeeded"; exit 0; }
+            fi
+            echo "Chat not ready yet; retrying in 15s..."
+            sleep 15
+          done
+          echo "Production AI chat failed after retries"
+          exit 1
 
       - name: Test production streaming chat
         run: |
           set +e
           TOKEN=$(cat token.txt)
-          HTTP_CODE=$(curl --silent --show-error --no-buffer \
-            -X POST "https://aihub-server-jipl.onrender.com/api/v1/ai/chat/stream" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $TOKEN" \
-            -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: stream ok"}]}' \
-            -o stream.txt -w '%{http_code}')
-          echo "Production streaming chat HTTP status: $HTTP_CODE"
-          echo "Production streaming chat response body:"
-          cat stream.txt
-          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
-            echo "Production streaming chat failed with HTTP $HTTP_CODE"
-            exit 1
-          fi
-          grep -q 'done' stream.txt
-          echo "Production streaming chat succeeded"
+          for i in $(seq 1 20); do
+            HTTP_CODE=$(curl --silent --show-error --no-buffer -X POST "$PRODUCTION_URL/api/v1/ai/chat/stream" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: stream ok"}]}' -o stream.txt -w '%{http_code}')
+            echo "Production streaming chat HTTP status (attempt $i/20): $HTTP_CODE"
+            cat stream.txt
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ] && grep -q 'done' stream.txt; then
+              echo "Production streaming chat succeeded"
+              exit 0
+            fi
+            echo "Streaming chat not ready yet; retrying in 15s..."
+            sleep 15
+          done
+          echo "Production streaming chat failed after retries"
+          exit 1
 
       - name: Cleanup token file
         if: always()
