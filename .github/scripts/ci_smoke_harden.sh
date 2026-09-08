@@ -30,7 +30,7 @@ token="$(printf '%s' "$login" | python3 -c 'import json,sys; print(json.load(sys
 
 python3 -c 'import base64,json,sys; p=sys.argv[1].split(".")[1]; p += "="*((4-len(p)%4)%4); c=json.loads(base64.urlsafe_b64decode(p)); assert c["tenantId"] == 1; assert c["roles"] == ["USER"]' "$token"
 
-tenant_mismatch_code="$(curl -sS -o tenant-mismatch.txt -w '%{http_code}' -X POST "$BASE_URL/api/v1/ai/chat" \
+tenant_mismatch_code="$(curl -q -sS -o tenant-mismatch.txt -w '%{http_code}' -X POST "$BASE_URL/api/v1/ai/chat" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $token" \
   -H 'X-Tenant-Id: 2' \
@@ -58,7 +58,7 @@ grep -q 'smoke test passed' stream-response.txt
 grep -q '"type":"delta"' stream-response.txt
 grep -q '"type":"done"' stream-response.txt
 
-unsupported_code="$(curl -sS -o unsupported-response.txt -w '%{http_code}' -X POST "$BASE_URL/api/v1/ai/chat" \
+unsupported_code="$(curl -q -sS -o unsupported-response.txt -w '%{http_code}' -X POST "$BASE_URL/api/v1/ai/chat" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $token" \
   -H 'X-Tenant-Id: 1' \
