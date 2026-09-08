@@ -12,15 +12,17 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     setError('');
     setBusy(true);
     try {
-      const result = await login(username, password);
+      const result = await login(username.trim(), password);
       const payload = result.data || result;
       const token = payload.accessToken || payload.token;
       if (!token) throw new Error('登录成功但未返回 JWT');
       localStorage.setItem('aihub_token', String(token));
+      localStorage.setItem('aihub_username', String(payload.username || username.trim()));
+      if (payload.role != null) localStorage.setItem('aihub_role', String(payload.role));
       if (payload.tenantId != null) {
         localStorage.setItem('aihub_tenant_id', String(payload.tenantId));
-      } else if (!localStorage.getItem('aihub_tenant_id')) {
-        localStorage.setItem('aihub_tenant_id', '1');
+      } else {
+        localStorage.removeItem('aihub_tenant_id');
       }
       onLogin();
     } catch (err) {
