@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import Login from './Login';
 import Chat from './Chat';
-import { listConversations, type Conversation } from './api';
+import { deleteConversation, listConversations, renameConversation, type Conversation } from './api';
 import './styles.css';
 
 function DashboardLayout({ onLogout }: { onLogout: () => void }) {
@@ -16,11 +16,27 @@ function DashboardLayout({ onLogout }: { onLogout: () => void }) {
   }
   useEffect(() => { refreshHistory(); }, [location.pathname]);
 
+  async function rename(c: Conversation) {
+    const title = window.prompt('Rename conversation', c.title);
+    if (title === null || !title.trim() || title.trim() === c.title) return;
+    try { await renameConversation(c.id, title.trim()); await refreshHistory(); }
+    catch (err) { window.alert(err instanceof Error ? err.message : 'Failed to rename conversation'); }
+  }
+
+  async function remove(c: Conversation) {
+    if (!window.confirm(`Delete “${c.title || 'New conversation'}”? This cannot be undone.`)) return;
+    try {
+      await deleteConversation(c.id);
+      await refreshHistory();
+      if (location.pathname === `/chat/${c.id}`) navigate('/chat');
+    } catch (err) { window.alert(err instanceof Error ? err.message : 'Failed to delete conversation'); }
+  }
+
   return <div className="app"><aside><div className="brand">AI<span>Hub</span></div><nav>
     <NavLink to="/" className={({isActive})=>isActive?'active':''}>⌂ Dashboard</NavLink>
     <NavLink to="/chat" className={({isActive})=>isActive?'active':''}>✦ AI Chat</NavLink>
     <div className="history-heading"><span>CONVERSATIONS</span><button onClick={()=>navigate('/chat')} title="New conversation">＋</button></div>
-    <div className="history-list">{conversations.length===0?<small className="history-empty">No conversations yet</small>:conversations.slice(0,12).map(c=><NavLink key={c.id} to={`/chat/${c.id}`} className="history-item">{c.title || 'New conversation'}</NavLink>)}</div>
+    <div className="history-list">{conversations.length===0?<small className="history-empty">No conversations yet</small>:conversations.slice(0,12).map(c=><div key={c.id} className="history-row"><NavLink to={`/chat/${c.id}`} className="history-item">{c.title || 'New conversation'}</NavLink><div className="history-actions"><button onClick={()=>rename(c)} title="Rename">✎</button><button onClick={()=>remove(c)} title="Delete">×</button></div></div>)}</div>
     <a>◈ Models</a><a>⚙ Settings</a>
   </nav><div className="user"><div className="avatar">A</div><div><b>AIHub User</b><small>Tenant {localStorage.getItem('aihub_tenant_id') || '1'}</small></div><button className="logout" onClick={onLogout}>×</button></div></aside><main><Outlet /></main></div>;
 }
