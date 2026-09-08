@@ -22,7 +22,7 @@ import java.io.*;
 @Configuration @EnableMethodSecurity public class SecurityConfig{
  @Bean PasswordEncoder passwordEncoder(){return new BCryptPasswordEncoder();}
  @Bean JwtService jwt(@Value("${aihub.jwt.secret}")String secret){if(secret==null||secret.isBlank()||secret.equals("change-this-development-secret-to-at-least-32-characters"))throw new IllegalStateException("JWT_SECRET must be configured with a non-default secret");if(secret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length<32)throw new IllegalStateException("JWT_SECRET must be at least 32 bytes");return new JwtService(secret);}
- @Bean SecurityFilterChain chain(HttpSecurity h,JwtService jwt)throws Exception{return h.csrf(c->c.disable()).cors(c->c.configurationSource(req->{var x=new CorsConfiguration();x.addAllowedOriginPattern("*");x.addAllowedHeader("*");x.addAllowedMethod("*");return x;})).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).authorizeHttpRequests(a->a.dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll().requestMatchers("/","/api/v1/auth/**","/actuator/**").permitAll().anyRequest().authenticated()).addFilterBefore(new JwtFilter(jwt),UsernamePasswordAuthenticationFilter.class).build();}
+ @Bean SecurityFilterChain chain(HttpSecurity h,JwtService jwt)throws Exception{return h.csrf(c->c.disable()).cors(c->c.configurationSource(req->{var x=new CorsConfiguration();x.addAllowedOriginPattern("*");x.addAllowedHeader("*");x.addAllowedMethod("*");return x;})).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).authorizeHttpRequests(a->a.dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll().requestMatchers("/","/api/v1/auth/**","/actuator/**").permitAll().anyRequest().authenticated()).addFilterBefore(new JwtFilter(jwt),UsernamePasswordAuthenticationFilter.class).addFilterAfter(new TenantSecurityFilter(),JwtFilter.class).build();}
  static class JwtFilter extends OncePerRequestFilter{
   private final JwtService jwt;JwtFilter(JwtService j){jwt=j;}
   protected void doFilterInternal(HttpServletRequest r,HttpServletResponse s,FilterChain c)throws ServletException,IOException{
@@ -42,5 +42,19 @@ import java.io.*;
    }
    c.doFilter(r,s);
   }
+ }
+ static class TenantSecurityFilter extends OncePerRequestFilter{
+  protected void doFilterInternal(HttpServletRequest r,HttpServletResponse s,FilterChain c)throws ServletException,IOException{
+   var auth=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+   if(auth!=null&&auth.isAuthenticated()&&!(auth instanceof AnonymousAuthenticationToken)){
+    Object details=auth.getDetails();
+    if(!(details instanceof Number)){writeForbidden(s,"Tenant context is missing");return;}
+    Long tenantId=((Number)details).longValue();
+    String header=r.getHeader("X-Tenant-Id");
+    if(header!=null&&!header.isBlank()&&!header.equals(tenantId.toString())){writeForbidden(s,"Tenant mismatch");return;}
+   }
+   c.doFilter(r,s);
+  }
+  private void writeForbidden(HttpServletResponse s,String message)throws IOException{s.setStatus(HttpServletResponse.SC_FORBIDDEN);s.setContentType("application/json");s.getWriter().write("{\"success\":false,\"data\":null,\"message\":\""+message+"\"}");}
  }
 }
