@@ -104,9 +104,18 @@ export async function deleteConversation(id: number) {
   await request<unknown>(`/api/v1/conversations/${id}`, { method: 'DELETE' });
 }
 
-export async function streamConversation(id: number, model: string, content: string, onDelta: (delta: string) => void) {
+export async function streamConversation(
+  id: number,
+  model: string,
+  content: string,
+  onDelta: (delta: string) => void,
+  signal?: AbortSignal
+) {
   const response = await fetch(`${API_BASE}/api/v1/conversations/${id}/messages/stream`, {
-    method: 'POST', headers: authHeaders(), body: JSON.stringify({ model, content })
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ model, content }),
+    signal
   });
   if (!response.ok || !response.body) {
     throw new Error(response.ok ? 'Streaming response body is unavailable' : await readError(response));
@@ -115,24 +124,34 @@ export async function streamConversation(id: number, model: string, content: str
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+
+  const processLine = (line: string) => {
+    const raw = line.trim();
+    if (!raw.startsWith('data:')) return;
+    const data = raw.slice(5).trim();
+    if (!data || data === '[DONE]') return;
+    try {
+      const event = JSON.parse(data) as { delta?: unknown; content?: unknown; error?: unknown; message?: unknown };
+      if (typeof event.error === 'string') throw new Error(event.error);
+      if (event.error && typeof event.error === 'object') throw new Error(String(event.message || 'Streaming request failed'));
+      const delta = typeof event.delta === 'string' ? event.delta : typeof event.content === 'string' ? event.content : '';
+      if (delta) onDelta(delta);
+    } catch (error) {
+      if (error instanceof Error && error.message !== 'Unexpected end of JSON input') throw error;
+      // Ignore malformed/incomplete SSE payloads; the next event can still succeed.
+    }
+  };
+
   while (true) {
     const { value, done } = await reader.read();
     buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
-    for (const line of lines) {
-      const raw = line.trim();
-      if (!raw.startsWith('data:')) continue;
-      const data = raw.slice(5).trim();
-      if (!data || data === '[DONE]') continue;
-      try {
-        const event = JSON.parse(data) as { delta?: unknown; content?: unknown };
-        const delta = typeof event.delta === 'string' ? event.delta : typeof event.content === 'string' ? event.content : '';
-        if (delta) onDelta(delta);
-      } catch {
-        // Ignore incomplete/non-JSON SSE payloads; the next chunk may complete the event.
-      }
+    for (const line of lines) processLine(line);
+    if (done) {
+      buffer += decoder.decode();
+      if (buffer.trim()) processLine(buffer);
+      break;
     }
-    if (done) break;
   }
 }
