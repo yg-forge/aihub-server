@@ -12,9 +12,14 @@ case "$unauthorized_code" in
   *) echo "Expected 401/403 for unauthenticated chat, got $unauthorized_code"; exit 1 ;;
 esac
 
-curl -fsS -X POST "$BASE_URL/api/v1/auth/register" \
+register="$(curl -fsS -X POST "$BASE_URL/api/v1/auth/register" \
   -H 'Content-Type: application/json' \
-  -d "{\"username\":\"ci-user\",\"password\":\"$PASSWORD\"}"
+  -d "{\"username\":\"ci-user\",\"password\":\"$PASSWORD\"}")"
+echo "$register"
+printf '%s' "$register" | grep -q '"role":"USER"'
+
+echo "$register" | grep -q '"role":"SUPER_ADMIN"' && { echo "Public registration must not create SUPER_ADMIN"; exit 1; } || true
+
 echo
 
 login="$(curl -fsS -X POST "$BASE_URL/api/v1/auth/login" \
@@ -23,6 +28,16 @@ login="$(curl -fsS -X POST "$BASE_URL/api/v1/auth/login" \
 
 echo "$login" | sed 's/"accessToken":"[^"]*"/"accessToken":"***"/'
 token="$(printf '%s' "$login" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["accessToken"])')"
+
+python3 -c 'import base64,json,sys; p=sys.argv[1].split(".")[1]; p += "="*((4-len(p)%4)%4); c=json.loads(base64.urlsafe_b64decode(p)); assert c["tenantId"] == 1; assert c["roles"] == ["USER"]' "$token"
+
+tenant_mismatch_code="$(curl -sS -o tenant-mismatch.txt -w '%{http_code}' -X POST "$BASE_URL/api/v1/ai/chat" \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $token" \
+  -H 'X-Tenant-Id: 2' \
+  -d '{"model":"gpt-ci-smoke","messages":[{"role":"user","content":"hello"}]}')"
+test "$tenant_mismatch_code" = "403"
+cat tenant-mismatch.txt
 
 response="$(curl -fsS -X POST "$BASE_URL/api/v1/ai/chat" \
   -H 'Content-Type: application/json' \
