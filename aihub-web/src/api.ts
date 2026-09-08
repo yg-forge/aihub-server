@@ -24,6 +24,31 @@ export function login(username: string, password: string) {
   return request<LoginResponse>('/api/v1/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
 }
 
+export async function listConversations(): Promise<Conversation[]> {
+  const body = await request<unknown>('/api/v1/conversations');
+  const value = body && typeof body === 'object' && 'data' in body ? (body as { data: unknown }).data : body;
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    const row = item as Record<string, unknown>;
+    return { id: Number(row.id), title: String(row.title || 'New conversation'), model: String(row.model || 'gpt-4o-mini') };
+  }).filter((row) => Number.isFinite(row.id));
+}
+
+export async function getConversation(id: number): Promise<{ conversation: Conversation; messages: ChatMessage[] }> {
+  const body = await request<unknown>(`/api/v1/conversations/${id}`);
+  const root = (body && typeof body === 'object' && 'data' in body ? (body as { data: unknown }).data : body) as Record<string, unknown>;
+  const rawMessages = Array.isArray(root.messages) ? root.messages : [];
+  const messages = rawMessages.map((item) => {
+    const row = item as Record<string, unknown>;
+    const role = row.role === 'assistant' || row.role === 'user' ? row.role : 'assistant';
+    return { role, content: String(row.content || '') } as ChatMessage;
+  });
+  return {
+    conversation: { id: Number(root.id ?? id), title: String(root.title || 'Conversation'), model: String(root.model || 'gpt-4o-mini') },
+    messages
+  };
+}
+
 export function createConversation(model: string, title?: string) {
   return request<{ data: Conversation }>('/api/v1/conversations', { method: 'POST', body: JSON.stringify({ model, title }) }).then(x => x.data);
 }
