@@ -10,8 +10,7 @@ public class TenantConfig {
   @Bean
   FilterRegistrationBean<TenantFilter> tenantFilter() {
     FilterRegistrationBean<TenantFilter> bean = new FilterRegistrationBean<>(new TenantFilter());
-    bean.setOrder(10);
-    bean.addUrlPatterns("/api/*");
+    bean.setEnabled(false);
     return bean;
   }
 }
