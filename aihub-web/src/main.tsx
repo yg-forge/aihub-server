@@ -1,0 +1,7 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import './styles.css';
+
+function App(){return <div className="app"><aside><div className="brand">AI<span>Hub</span></div><nav><a className="active">⌂ Dashboard</a><a>✦ AI Chat</a><a>◫ Conversations</a><a>◈ Models</a><a>⚙ Settings</a></nav><div className="user"><div className="avatar">A</div><div><b>AIHub User</b><small>Tenant 1</small></div></div></aside><main><header><div><p className="eyebrow">AI PLATFORM</p><h1>Welcome to AIHub</h1><p className="muted">One place to manage models, conversations and AI providers.</p></div><button>＋ New Chat</button></header><section className="grid"><article><small>ACTIVE MODELS</small><strong>0</strong><p>Connect your first AI provider</p></article><article><small>CONVERSATIONS</small><strong>0</strong><p>Your conversations will appear here</p></article><article><small>API STATUS</small><strong className="ok">● Online</strong><p>Backend services are ready</p></article></section><section className="hero"><div><p className="eyebrow">START HERE</p><h2>Build your AI workspace</h2><p className="muted">The frontend foundation is ready. Next we connect authentication, streaming chat and conversation history.</p><button className="primary">Start a conversation →</button></div><div className="orb">✦</div></section></main></div>}
+
+createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
