@@ -94,7 +94,7 @@ jobs:
           exit 1
 
       - name: Smoke test auth, authorization, chat and stream
-        run: bash .github/scripts/ci_smoke_harden.sh
+        run: python3 .github/scripts/ci_smoke_harden.py
 
       - name: Upload server log on failure
         if: failure()
