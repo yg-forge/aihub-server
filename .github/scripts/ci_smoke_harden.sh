@@ -19,7 +19,6 @@ echo "$register"
 printf '%s' "$register" | grep -q '"role":"USER"'
 
 echo "$register" | grep -q '"role":"SUPER_ADMIN"' && { echo "Public registration must not create SUPER_ADMIN"; exit 1; } || true
-
 echo
 
 login="$(curl -fsS -X POST "$BASE_URL/api/v1/auth/login" \
@@ -42,6 +41,7 @@ cat tenant-mismatch.txt
 response="$(curl -fsS -X POST "$BASE_URL/api/v1/ai/chat" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $token" \
+  -H 'X-Tenant-Id: 1' \
   -d '{"model":"gpt-ci-smoke","messages":[{"role":"user","content":"hello"}]}')"
 echo "$response"
 printf '%s' "$response" | grep -q 'CI chat smoke test passed'
@@ -49,6 +49,7 @@ printf '%s' "$response" | grep -q 'CI chat smoke test passed'
 stream_code="$(curl --max-time 20 -sS -N -o stream-response.txt -w '%{http_code}' -X POST "$BASE_URL/api/v1/ai/chat/stream" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $token" \
+  -H 'X-Tenant-Id: 1' \
   -d '{"model":"gpt-ci-smoke","messages":[{"role":"user","content":"hello"}]}')"
 test "$stream_code" = "200"
 cat stream-response.txt
@@ -60,6 +61,7 @@ grep -q '"type":"done"' stream-response.txt
 unsupported_code="$(curl -sS -o unsupported-response.txt -w '%{http_code}' -X POST "$BASE_URL/api/v1/ai/chat" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $token" \
+  -H 'X-Tenant-Id: 1' \
   -d '{"model":"unsupported-ci-model","messages":[{"role":"user","content":"hello"}]}')"
 case "$unsupported_code" in
   4*|5*) ;;
