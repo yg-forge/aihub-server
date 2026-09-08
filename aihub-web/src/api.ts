@@ -3,6 +3,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 export type LoginResponse = { token?: string; accessToken?: string; [key: string]: unknown };
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
 export type Conversation = { id: number; title: string; model: string };
+export type ModelInfo = { model: string; provider: string; enabled: boolean };
 
 function authHeaders() {
   const headers = new Headers({ 'Content-Type': 'application/json' });
@@ -24,13 +25,23 @@ export function login(username: string, password: string) {
   return request<LoginResponse>('/api/v1/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
 }
 
+export async function listModels(): Promise<ModelInfo[]> {
+  const body = await request<unknown>('/api/v1/models');
+  const value = body && typeof body === 'object' && 'data' in body ? (body as { data: unknown }).data : body;
+  if (!Array.isArray(value)) return [];
+  return value.map(item => {
+    const row = item as Record<string, unknown>;
+    return { model: String(row.model || ''), provider: String(row.provider || ''), enabled: row.enabled !== false };
+  }).filter(row => row.model && row.enabled);
+}
+
 export async function listConversations(): Promise<Conversation[]> {
   const body = await request<unknown>('/api/v1/conversations');
   const value = body && typeof body === 'object' && 'data' in body ? (body as { data: unknown }).data : body;
   if (!Array.isArray(value)) return [];
   return value.map((item) => {
     const row = item as Record<string, unknown>;
-    return { id: Number(row.id), title: String(row.title || 'New conversation'), model: String(row.model || 'gpt-4o-mini') };
+    return { id: Number(row.id), title: String(row.title || 'New conversation'), model: String(row.model || '') };
   }).filter((row) => Number.isFinite(row.id));
 }
 
@@ -44,7 +55,7 @@ export async function getConversation(id: number): Promise<{ conversation: Conve
     return { role, content: String(row.content || '') } as ChatMessage;
   });
   return {
-    conversation: { id: Number(root.id ?? id), title: String(root.title || 'Conversation'), model: String(root.model || 'gpt-4o-mini') },
+    conversation: { id: Number(root.id ?? id), title: String(root.title || 'Conversation'), model: String(root.model || '') },
     messages
   };
 }
