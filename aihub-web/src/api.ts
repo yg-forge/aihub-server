@@ -10,6 +10,7 @@ export type LoginResponse = {
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
 export type Conversation = { id: number; title: string; model: string };
 export type ModelInfo = { model: string; provider: string; enabled: boolean };
+export type StreamUsage = { inputTokens?: number; outputTokens?: number; totalTokens?: number };
 
 function authHeaders() {
   const headers = new Headers({ 'Content-Type': 'application/json' });
@@ -100,9 +101,16 @@ export async function deleteConversation(id: number) {
   await request<unknown>(`/api/v1/conversations/${id}`, { method: 'DELETE' });
 }
 
-export async function streamConversation(id: number, model: string, content: string, onDelta: (delta: string) => void) {
+export async function streamConversation(
+  id: number,
+  model: string,
+  content: string,
+  onDelta: (delta: string) => void,
+  onUsage?: (usage: StreamUsage) => void,
+  signal?: AbortSignal
+) {
   const response = await fetch(`${API_BASE}/api/v1/conversations/${id}/messages/stream`, {
-    method: 'POST', headers: authHeaders(), body: JSON.stringify({ model, content })
+    method: 'POST', headers: authHeaders(), body: JSON.stringify({ model, content }), signal
   });
   if (!response.ok || !response.body) {
     throw new Error(response.ok ? 'Streaming response body is unavailable' : await readError(response));
@@ -111,24 +119,33 @@ export async function streamConversation(id: number, model: string, content: str
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+
+  const handleLine = (line: string) => {
+    const raw = line.trim();
+    if (!raw.startsWith('data:')) return;
+    const data = raw.slice(5).trim();
+    if (!data || data === '[DONE]') return;
+    try {
+      const event = JSON.parse(data) as { type?: unknown; delta?: unknown; content?: unknown; usage?: StreamUsage };
+      if (event.type === 'error') throw new Error(typeof event.content === 'string' ? event.content : 'AI provider error');
+      if (event.usage && onUsage) onUsage(event.usage);
+      const delta = typeof event.delta === 'string' ? event.delta : typeof event.content === 'string' && event.type !== 'error' ? event.content : '';
+      if (delta) onDelta(delta);
+    } catch (error) {
+      if (error instanceof Error && error.message !== 'Unexpected end of JSON input') throw error;
+      // Ignore incomplete/non-JSON SSE payloads; the next chunk may complete the event.
+    }
+  };
+
   while (true) {
     const { value, done } = await reader.read();
     buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
-    for (const line of lines) {
-      const raw = line.trim();
-      if (!raw.startsWith('data:')) continue;
-      const data = raw.slice(5).trim();
-      if (!data || data === '[DONE]') continue;
-      try {
-        const event = JSON.parse(data) as { delta?: unknown; content?: unknown };
-        const delta = typeof event.delta === 'string' ? event.delta : typeof event.content === 'string' ? event.content : '';
-        if (delta) onDelta(delta);
-      } catch {
-        // Ignore incomplete/non-JSON SSE payloads; the next chunk may complete the event.
-      }
+    lines.forEach(handleLine);
+    if (done) {
+      if (buffer.trim()) handleLine(buffer);
+      break;
     }
-    if (done) break;
   }
 }
