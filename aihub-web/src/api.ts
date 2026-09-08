@@ -1,6 +1,12 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
-export type LoginResponse = { token?: string; accessToken?: string; [key: string]: unknown };
+export type LoginResponse = {
+  token?: string;
+  accessToken?: string;
+  tenantId?: number | string;
+  data?: { token?: string; accessToken?: string; tenantId?: number | string };
+  [key: string]: unknown;
+};
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
 export type Conversation = { id: number; title: string; model: string };
 export type ModelInfo = { model: string; provider: string; enabled: boolean };
@@ -14,15 +20,34 @@ function authHeaders() {
   return headers;
 }
 
+function clearAuth() {
+  localStorage.removeItem('aihub_token');
+  localStorage.removeItem('aihub_tenant_id');
+}
+
+async function readError(response: Response) {
+  const body = await response.json().catch(() => null);
+  if (response.status === 401) {
+    clearAuth();
+    return '登录已过期，请重新登录';
+  }
+  if (response.status === 403) return body?.message || '没有权限访问该资源';
+  if (response.status === 429) return body?.message || '请求过于频繁，请稍后重试';
+  return body?.message || `Request failed: ${response.status}`;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers: authHeaders() });
+  if (!response.ok) throw new Error(await readError(response));
   const body = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(body?.message || `Request failed: ${response.status}`);
   return body as T;
 }
 
 export function login(username: string, password: string) {
-  return request<LoginResponse>('/api/v1/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+  return request<LoginResponse>('/api/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password })
+  });
 }
 
 export async function listModels(): Promise<ModelInfo[]> {
@@ -80,23 +105,29 @@ export async function streamConversation(id: number, model: string, content: str
     method: 'POST', headers: authHeaders(), body: JSON.stringify({ model, content })
   });
   if (!response.ok || !response.body) {
-    const body = await response.text().catch(() => '');
-    throw new Error(body || `Streaming request failed: ${response.status}`);
+    throw new Error(response.ok ? 'Streaming response body is unavailable' : await readError(response));
   }
+
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   while (true) {
     const { value, done } = await reader.read();
     buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-    const lines = buffer.split('\n'); buffer = lines.pop() || '';
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
     for (const line of lines) {
       const raw = line.trim();
       if (!raw.startsWith('data:')) continue;
       const data = raw.slice(5).trim();
-      if (!data) continue;
-      try { const event = JSON.parse(data); if (event.delta) onDelta(event.delta); }
-      catch { /* Spring may emit raw JSON chunks depending on codec */ }
+      if (!data || data === '[DONE]') continue;
+      try {
+        const event = JSON.parse(data) as { delta?: unknown; content?: unknown };
+        const delta = typeof event.delta === 'string' ? event.delta : typeof event.content === 'string' ? event.content : '';
+        if (delta) onDelta(delta);
+      } catch {
+        // Ignore incomplete/non-JSON SSE payloads; the next chunk may complete the event.
+      }
     }
     if (done) break;
   }
