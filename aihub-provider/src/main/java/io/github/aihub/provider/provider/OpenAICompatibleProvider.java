@@ -1,13 +1,89 @@
 package io.github.aihub.provider.provider;
-import io.github.aihub.provider.dto.*;import io.github.aihub.provider.spi.*;import io.github.aihub.provider.stream.*;import com.fasterxml.jackson.databind.*;import java.util.*;import org.springframework.beans.factory.annotation.Value;import org.springframework.core.ParameterizedTypeReference;import org.springframework.http.*;import org.springframework.http.codec.ServerSentEvent;import org.springframework.stereotype.Component;import org.springframework.web.reactive.function.client.WebClient;import reactor.core.publisher.Flux;
+
+import io.github.aihub.model.ModelInfo;
+import io.github.aihub.provider.dto.*;
+import io.github.aihub.provider.spi.*;
+import io.github.aihub.provider.stream.*;
+import com.fasterxml.jackson.databind.*;
+import java.util.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.*;
+import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
+
 @Component
-public class OpenAICompatibleProvider implements AIProvider{
- private final WebClient client; private final ObjectMapper json; private final String defaultModel;
- public OpenAICompatibleProvider(@Value("${aihub.providers.openai.base-url:https://api.openai.com/v1}") String base,@Value("${aihub.providers.openai.api-key:}") String key,@Value("${aihub.providers.model:gpt-4o-mini}") String defaultModel,ObjectMapper json){this.client=WebClient.builder().baseUrl(base.replaceAll("/+$","")).defaultHeader(HttpHeaders.AUTHORIZATION,"Bearer "+key).build();this.defaultModel=defaultModel;this.json=json;}
- public String name(){return "openai-compatible";}
- public boolean supports(String m){if(m==null||m.isBlank())return false;return m.equals(defaultModel)||m.startsWith("qwen:")||m.startsWith("openai:")||m.startsWith("gpt-");}
- private String model(String m){if(m==null||m.isBlank())return defaultModel;if(m.startsWith("qwen:"))return m.substring(5);if(m.startsWith("openai:"))return defaultModel;if(m.startsWith("gpt-"))return defaultModel;return m;}
- private Map<String,Object> body(ProviderChatRequest r,boolean stream){Map<String,Object>b=new LinkedHashMap<>();b.put("model",model(r.model()));b.put("messages",r.messages().stream().map(x->Map.of("role",x.role(),"content",x.content())).toList());b.put("stream",stream);if(r.temperature()!=null)b.put("temperature",r.temperature());if(r.maxTokens()!=null)b.put("max_tokens",r.maxTokens());return b;}
- public ProviderChatResponse chat(ProviderChatRequest r){JsonNode root=client.post().uri("/chat/completions").contentType(MediaType.APPLICATION_JSON).bodyValue(body(r,false)).retrieve().bodyToMono(JsonNode.class).block();if(root==null)throw new IllegalStateException("Empty provider response");JsonNode c=root.path("choices").path(0);return new ProviderChatResponse(name(),root.path("model").asText(model(r.model())),c.path("message").path("content").asText(""),c.path("finish_reason").asText(null));}
- public Flux<ProviderStreamEvent> stream(ProviderChatRequest r){String m=model(r.model());return client.post().uri("/chat/completions").contentType(MediaType.APPLICATION_JSON).accept(MediaType.TEXT_EVENT_STREAM).bodyValue(body(r,true)).retrieve().bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>(){}).handle((event,sink)->{String p=event.data();if(p==null||p.isBlank())return;if(p.equals("[DONE]")){sink.next(new ProviderStreamEvent("done",name(),m,null,"stop"));return;}try{JsonNode c=json.readTree(p).path("choices").path(0);String d=c.path("delta").path("content").asText("");String f=c.path("finish_reason").asText(null);if(f!=null)sink.next(new ProviderStreamEvent("done",name(),m,null,f));else if(!d.isEmpty())sink.next(new ProviderStreamEvent("delta",name(),m,d,null));}catch(Exception e){sink.next(new ProviderStreamEvent("error",name(),m,"Invalid SSE payload",null));}});}
+public class OpenAICompatibleProvider implements AIProvider {
+    private final WebClient client;
+    private final ObjectMapper json;
+    private final String defaultModel;
+
+    public OpenAICompatibleProvider(
+            @Value("${aihub.providers.openai.base-url:https://api.openai.com/v1}") String base,
+            @Value("${aihub.providers.openai.api-key:}") String key,
+            @Value("${aihub.providers.model:gpt-4o-mini}") String defaultModel,
+            ObjectMapper json) {
+        this.client = WebClient.builder()
+                .baseUrl(base.replaceAll("/+$", ""))
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + key)
+                .build();
+        this.defaultModel = defaultModel;
+        this.json = json;
+    }
+
+    public String name() { return "openai-compatible"; }
+
+    public boolean supports(String m) {
+        return m != null && !m.isBlank() && m.equals(defaultModel);
+    }
+
+    public List<ModelInfo> models() {
+        return List.of(new ModelInfo(defaultModel, name(), true));
+    }
+
+    private String model(String m) {
+        return m == null || m.isBlank() ? defaultModel : m;
+    }
+
+    private Map<String, Object> body(ProviderChatRequest r, boolean stream) {
+        Map<String, Object> b = new LinkedHashMap<>();
+        b.put("model", model(r.model()));
+        b.put("messages", r.messages().stream().map(x -> Map.of("role", x.role(), "content", x.content())).toList());
+        b.put("stream", stream);
+        if (r.temperature() != null) b.put("temperature", r.temperature());
+        if (r.maxTokens() != null) b.put("max_tokens", r.maxTokens());
+        return b;
+    }
+
+    public ProviderChatResponse chat(ProviderChatRequest r) {
+        JsonNode root = client.post().uri("/chat/completions").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body(r, false)).retrieve().bodyToMono(JsonNode.class).block();
+        if (root == null) throw new IllegalStateException("Empty provider response");
+        JsonNode c = root.path("choices").path(0);
+        return new ProviderChatResponse(name(), root.path("model").asText(model(r.model())),
+                c.path("message").path("content").asText(""), c.path("finish_reason").asText(null));
+    }
+
+    public Flux<ProviderStreamEvent> stream(ProviderChatRequest r) {
+        String m = model(r.model());
+        return client.post().uri("/chat/completions").contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM).bodyValue(body(r, true))
+                .retrieve().bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {})
+                .handle((event, sink) -> {
+                    String p = event.data();
+                    if (p == null || p.isBlank()) return;
+                    if (p.equals("[DONE]")) { sink.next(new ProviderStreamEvent("done", name(), m, null, "stop")); return; }
+                    try {
+                        JsonNode c = json.readTree(p).path("choices").path(0);
+                        String d = c.path("delta").path("content").asText("");
+                        String f = c.path("finish_reason").asText(null);
+                        if (f != null) sink.next(new ProviderStreamEvent("done", name(), m, null, f));
+                        else if (!d.isEmpty()) sink.next(new ProviderStreamEvent("delta", name(), m, d, null));
+                    } catch (Exception e) {
+                        sink.next(new ProviderStreamEvent("error", name(), m, "Invalid SSE payload", null));
+                    }
+                });
+    }
 }
