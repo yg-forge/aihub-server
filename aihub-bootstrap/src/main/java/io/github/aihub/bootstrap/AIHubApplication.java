@@ -6,8 +6,8 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication(scanBasePackages = "io.github.aihub")
-@EntityScan(basePackages = "io.github.aihub.system.entity")
-@EnableJpaRepositories(basePackages = "io.github.aihub.system.repo")
+@EntityScan(basePackages = "io.github.aihub")
+@EnableJpaRepositories(basePackages = "io.github.aihub")
 public class AIHubApplication {
     public static void main(String[] args) {
         SpringApplication.run(AIHubApplication.class, args);
