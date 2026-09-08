@@ -1,10 +1,12 @@
 package io.github.aihub.chat.service;
 
 import io.github.aihub.chat.dto.*;
-import io.github.aihub.chat.model.*;
+import io.github.aihub.chat.model.ChatMessage;
+import io.github.aihub.chat.model.Conversation;
 import io.github.aihub.chat.repository.*;
 import io.github.aihub.provider.dto.ProviderChatRequest;
 import io.github.aihub.provider.router.ModelRouter;
+import io.github.aihub.system.entity.SysUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
