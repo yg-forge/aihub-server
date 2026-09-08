@@ -25,7 +25,7 @@ public class ConversationService {
     }
 
     private Long userId(String username) {
-        return users.findByUsername(username).map(SysUser::getId)
+        return users.findByUsername(username).map(u -> u.id)
                 .orElseThrow(() -> new IllegalStateException("Authenticated user not found"));
     }
 
