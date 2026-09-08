@@ -4,9 +4,12 @@ export type LoginResponse = {
   token?: string;
   accessToken?: string;
   tenantId?: number | string;
-  data?: { token?: string; accessToken?: string; tenantId?: number | string };
+  username?: string;
+  role?: string;
+  data?: { token?: string; accessToken?: string; tenantId?: number | string; username?: string; role?: string };
   [key: string]: unknown;
 };
+export type CurrentUser = { username: string; role: string; tenantId: string };
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
 export type Conversation = { id: number; title: string; model: string };
 export type ModelInfo = { model: string; provider: string; enabled: boolean };
@@ -20,9 +23,11 @@ function authHeaders() {
   return headers;
 }
 
-function clearAuth() {
+export function clearAuth() {
   localStorage.removeItem('aihub_token');
   localStorage.removeItem('aihub_tenant_id');
+  localStorage.removeItem('aihub_username');
+  localStorage.removeItem('aihub_role');
 }
 
 async function readError(response: Response) {
@@ -48,6 +53,17 @@ export function login(username: string, password: string) {
     method: 'POST',
     body: JSON.stringify({ username, password })
   });
+}
+
+export async function getCurrentUser(): Promise<CurrentUser> {
+  const body = await request<unknown>('/api/v1/auth/me');
+  const value = body && typeof body === 'object' && 'data' in body ? (body as { data: unknown }).data : body;
+  const row = (value || {}) as Record<string, unknown>;
+  return {
+    username: String(row.username || localStorage.getItem('aihub_username') || 'AIHub User'),
+    role: String(row.role || localStorage.getItem('aihub_role') || 'USER'),
+    tenantId: String(row.tenantId ?? row.tenant_id ?? localStorage.getItem('aihub_tenant_id') ?? '')
+  };
 }
 
 export async function listModels(): Promise<ModelInfo[]> {
