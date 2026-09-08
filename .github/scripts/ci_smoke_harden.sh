@@ -34,7 +34,7 @@ tenant_mismatch_code="$(command curl -sS -o tenant-mismatch.txt -w '%{http_code}
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $token" \
   -H 'X-Tenant-Id: 2' \
-  -d '{"model":"gpt-ci-smoke","messages":[{"role":"user","content":"hello"}]}')"
+  -d '{"model":"gpt-ci-smoke","messages":[{"role":"user","content":"hello"}]}' || true)"
 test "$tenant_mismatch_code" = "403"
 cat tenant-mismatch.txt
 
@@ -62,7 +62,7 @@ unsupported_code="$(command curl -sS -o unsupported-response.txt -w '%{http_code
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $token" \
   -H 'X-Tenant-Id: 1' \
-  -d '{"model":"unsupported-ci-model","messages":[{"role":"user","content":"hello"}]}')"
+  -d '{"model":"unsupported-ci-model","messages":[{"role":"user","content":"hello"}]}' || true)"
 case "$unsupported_code" in
   4*|5*) ;;
   *) echo "Expected error status for unsupported model, got $unsupported_code"; cat unsupported-response.txt; exit 1 ;;
