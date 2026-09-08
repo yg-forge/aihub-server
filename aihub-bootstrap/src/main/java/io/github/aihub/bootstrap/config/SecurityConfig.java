@@ -1,6 +1,7 @@
 package io.github.aihub.bootstrap.config;
 
 import io.github.aihub.auth.*;
+import io.github.aihub.tenant.TenantContext;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.context.annotation.*;
 import org.springframework.http.*;
@@ -46,14 +47,17 @@ import java.io.*;
  static class TenantSecurityFilter extends OncePerRequestFilter{
   protected void doFilterInternal(HttpServletRequest r,HttpServletResponse s,FilterChain c)throws ServletException,IOException{
    var auth=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-   if(auth!=null&&auth.isAuthenticated()&&!(auth instanceof AnonymousAuthenticationToken)){
-    Object details=auth.getDetails();
-    if(!(details instanceof Number)){writeForbidden(s,"Tenant context is missing");return;}
-    Long tenantId=((Number)details).longValue();
-    String header=r.getHeader("X-Tenant-Id");
-    if(header!=null&&!header.isBlank()&&!header.equals(tenantId.toString())){writeForbidden(s,"Tenant mismatch");return;}
-   }
-   c.doFilter(r,s);
+   try{
+    if(auth!=null&&auth.isAuthenticated()&&!(auth instanceof AnonymousAuthenticationToken)){
+     Object details=auth.getDetails();
+     if(!(details instanceof Number)){writeForbidden(s,"Tenant context is missing");return;}
+     Long tenantId=((Number)details).longValue();
+     String header=r.getHeader("X-Tenant-Id");
+     if(header!=null&&!header.isBlank()&&!header.equals(tenantId.toString())){writeForbidden(s,"Tenant mismatch");return;}
+     TenantContext.set(tenantId);
+    }
+    c.doFilter(r,s);
+   } finally { TenantContext.clear(); }
   }
   private void writeForbidden(HttpServletResponse s,String message)throws IOException{s.setStatus(HttpServletResponse.SC_FORBIDDEN);s.setContentType("application/json");s.getWriter().write("{\"success\":false,\"data\":null,\"message\":\""+message+"\"}");}
  }
