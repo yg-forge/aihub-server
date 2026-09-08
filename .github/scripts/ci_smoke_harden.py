@@ -7,6 +7,7 @@ import urllib.error
 import urllib.request
 
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8080")
+MODEL = os.environ.get("AI_PROVIDER_MODEL", "gpt-4o-mini")
 PASSWORD = "CiTestPassword123!"
 
 
@@ -30,7 +31,7 @@ def fail(message):
     sys.exit(1)
 
 
-body = {"model": "qwen-plus", "messages": [{"role": "user", "content": "hello"}]}
+body = {"model": MODEL, "messages": [{"role": "user", "content": "hello"}]}
 
 status, _ = request("/api/v1/ai/chat", body)
 print(f"Unauthenticated chat: HTTP {status}")
