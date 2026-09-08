@@ -1,11 +1,11 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import { createConversation, getConversation, listModels, streamConversation, type ChatMessage, type ModelInfo } from './api';
 
 type Props = { onBack: () => void; initialConversationId?: number | null; onConversationChange?: (id: number) => void };
 
 function renderMarkdown(content: string) {
   const lines = content.split('\n');
-  const blocks: JSX.Element[] = [];
+  const blocks: ReactNode[] = [];
   let code: string[] = [];
   let inCode = false;
   let key = 0;
