@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  AI_PROVIDER_MODEL: gpt-4o-mini
+
 jobs:
   build-and-smoke-test:
     name: Build and Smoke Test - Java 21
