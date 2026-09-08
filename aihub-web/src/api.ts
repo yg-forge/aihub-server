@@ -53,6 +53,17 @@ export function createConversation(model: string, title?: string) {
   return request<{ data: Conversation }>('/api/v1/conversations', { method: 'POST', body: JSON.stringify({ model, title }) }).then(x => x.data);
 }
 
+export function renameConversation(id: number, title: string) {
+  return request<{ data: Conversation }>(`/api/v1/conversations/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title })
+  }).then(x => x.data);
+}
+
+export async function deleteConversation(id: number) {
+  await request<unknown>(`/api/v1/conversations/${id}`, { method: 'DELETE' });
+}
+
 export async function streamConversation(id: number, model: string, content: string, onDelta: (delta: string) => void) {
   const response = await fetch(`${API_BASE}/api/v1/conversations/${id}/messages/stream`, {
     method: 'POST', headers: authHeaders(), body: JSON.stringify({ model, content })
