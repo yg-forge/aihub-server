@@ -1,10 +1,36 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter, Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import Login from './Login';
 import Chat from './Chat';
+import { listConversations, type Conversation } from './api';
 import './styles.css';
 
-function Dashboard({ onLogout, onChat }: { onLogout: () => void; onChat: () => void }) { return <div className="app"><aside><div className="brand">AI<span>Hub</span></div><nav><a className="active">⌂ Dashboard</a><a onClick={onChat}>✦ AI Chat</a><a>◫ Conversations</a><a>◈ Models</a><a>⚙ Settings</a></nav><div className="user"><div className="avatar">A</div><div><b>AIHub User</b><small>Tenant {localStorage.getItem('aihub_tenant_id') || '1'}</small></div><button className="logout" onClick={onLogout}>×</button></div></aside><main><header><div><p className="eyebrow">AI PLATFORM</p><h1>Welcome to AIHub</h1><p className="muted">One place to manage models, conversations and AI providers.</p></div><button onClick={onChat}>＋ New Chat</button></header><section className="grid"><article><small>ACTIVE MODELS</small><strong>1</strong><p>OpenAI-compatible provider</p></article><article><small>CONVERSATIONS</small><strong>0</strong><p>Start your first conversation</p></article><article><small>API STATUS</small><strong className="ok">● Online</strong><p>Backend services are ready</p></article></section><section className="hero"><div><p className="eyebrow">START HERE</p><h2>Talk to your AI</h2><p className="muted">Authentication and tenant context are connected. Start a streaming conversation with the configured model.</p><button className="primary" onClick={onChat}>Start a conversation →</button></div><div className="orb">✦</div></section></main></div> }
+function DashboardLayout({ onLogout }: { onLogout: () => void }) {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const location = useLocation();
+  const navigate = useNavigate();
 
-function App(){ const [authenticated,setAuthenticated]=useState(Boolean(localStorage.getItem('aihub_token'))); const [chatOpen,setChatOpen]=useState(false); function logout(){localStorage.removeItem('aihub_token');setAuthenticated(false);setChatOpen(false)} if(!authenticated)return <Login onLogin={()=>setAuthenticated(true)}/>; if(chatOpen)return <Chat onBack={()=>setChatOpen(false)}/>; return <Dashboard onLogout={logout} onChat={()=>setChatOpen(true)}/> }
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
+  async function refreshHistory() {
+    try { setConversations(await listConversations()); } catch { setConversations([]); }
+  }
+  useEffect(() => { refreshHistory(); }, [location.pathname]);
+
+  return <div className="app"><aside><div className="brand">AI<span>Hub</span></div><nav>
+    <NavLink to="/" className={({isActive})=>isActive?'active':''}>⌂ Dashboard</NavLink>
+    <NavLink to="/chat" className={({isActive})=>isActive?'active':''}>✦ AI Chat</NavLink>
+    <div className="history-heading"><span>CONVERSATIONS</span><button onClick={()=>navigate('/chat')} title="New conversation">＋</button></div>
+    <div className="history-list">{conversations.length===0?<small className="history-empty">No conversations yet</small>:conversations.slice(0,12).map(c=><NavLink key={c.id} to={`/chat/${c.id}`} className="history-item">{c.title || 'New conversation'}</NavLink>)}</div>
+    <a>◈ Models</a><a>⚙ Settings</a>
+  </nav><div className="user"><div className="avatar">A</div><div><b>AIHub User</b><small>Tenant {localStorage.getItem('aihub_tenant_id') || '1'}</small></div><button className="logout" onClick={onLogout}>×</button></div></aside><main><Outlet /></main></div>;
+}
+
+function DashboardHome() { const navigate = useNavigate(); return <><header><div><p className="eyebrow">AI PLATFORM</p><h1>Welcome to AIHub</h1><p className="muted">One place to manage models, conversations and AI providers.</p></div><button onClick={()=>navigate('/chat')}>＋ New Chat</button></header><section className="grid"><article><small>ACTIVE MODELS</small><strong>1</strong><p>OpenAI-compatible provider</p></article><article><small>CONVERSATIONS</small><strong>—</strong><p>Choose a conversation from the sidebar</p></article><article><small>API STATUS</small><strong className="ok">● Online</strong><p>Backend services are ready</p></article></section><section className="hero"><div><p className="eyebrow">START HERE</p><h2>Talk to your AI</h2><p className="muted">Authentication, tenant context, conversation persistence and streaming are connected.</p><button className="primary" onClick={()=>navigate('/chat')}>Start a conversation →</button></div><div className="orb">✦</div></section></>; }
+
+function ChatRoute() { const { id } = useParams(); const navigate = useNavigate(); return <Chat initialConversationId={id ? Number(id) : null} onBack={()=>navigate('/')} onConversationChange={(conversationId)=>navigate(`/chat/${conversationId}`, { replace: true })}/>; }
+
+function ProtectedApp({ onLogout }: { onLogout: () => void }) { return <Routes><Route element={<DashboardLayout onLogout={onLogout}/>}><Route index element={<DashboardHome/>}/><Route path="chat" element={<ChatRoute/>}/><Route path="chat/:id" element={<ChatRoute/>}/></Route></Routes>; }
+
+function App() { const [authenticated,setAuthenticated]=useState(Boolean(localStorage.getItem('aihub_token'))); function logout(){localStorage.removeItem('aihub_token');setAuthenticated(false);} if(!authenticated)return <Routes><Route path="*" element={<Login onLogin={()=>setAuthenticated(true)}/>}/></Routes>; return <ProtectedApp onLogout={logout}/>; }
+
+createRoot(document.getElementById('root')!).render(<React.StrictMode><BrowserRouter><App/></BrowserRouter></React.StrictMode>);
