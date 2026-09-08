@@ -30,7 +30,7 @@ def fail(message):
     sys.exit(1)
 
 
-body = {"model": "gpt-ci-smoke", "messages": [{"role": "user", "content": "hello"}]}
+body = {"model": "qwen-plus", "messages": [{"role": "user", "content": "hello"}]}
 
 status, _ = request("/api/v1/ai/chat", body)
 print(f"Unauthenticated chat: HTTP {status}")
