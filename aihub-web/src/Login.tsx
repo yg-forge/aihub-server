@@ -19,8 +19,9 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
       localStorage.setItem('aihub_token', String(token));
       if (payload.tenantId != null) {
         localStorage.setItem('aihub_tenant_id', String(payload.tenantId));
-      } else if (!localStorage.getItem('aihub_tenant_id')) {
-        localStorage.setItem('aihub_tenant_id', '1');
+      } else {
+        // Do not guess a tenant. The backend derives tenant context from the JWT.
+        localStorage.removeItem('aihub_tenant_id');
       }
       onLogin();
     } catch (err) {
