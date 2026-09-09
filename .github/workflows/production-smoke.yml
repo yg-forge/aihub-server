@@ -10,6 +10,7 @@ permissions:
 
 env:
   PRODUCTION_URL: https://aihub-server-jipl.onrender.com
+  PRODUCTION_MODEL: qwen-plus
 
 jobs:
   production-smoke:
@@ -56,11 +57,14 @@ jobs:
           printf '%s' "$TOKEN" > token.txt
 
       - name: Test production AI chat
+        env:
+          MODEL: ${{ env.PRODUCTION_MODEL }}
         run: |
           set +e
           TOKEN=$(cat token.txt)
           for i in $(seq 1 20); do
-            HTTP_CODE=$(curl --silent --show-error -X POST "$PRODUCTION_URL/api/v1/ai/chat" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: AIHub production smoke test passed"}]}' -D chat.headers -o chat.json -w '%{http_code}')
+            HTTP_CODE=$(curl --silent --show-error -X POST "$PRODUCTION_URL/api/v1/ai/chat" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly: AIHub production smoke test passed\"}]}" -D chat.headers -o chat.json -w '%{http_code}')
+            echo "Production AI chat model: $MODEL"
             echo "Production AI chat HTTP status (attempt $i/20): $HTTP_CODE"
             echo "Response headers:"
             cat chat.headers
@@ -82,11 +86,14 @@ jobs:
           exit 1
 
       - name: Test production streaming chat
+        env:
+          MODEL: ${{ env.PRODUCTION_MODEL }}
         run: |
           set +e
           TOKEN=$(cat token.txt)
           for i in $(seq 1 20); do
-            HTTP_CODE=$(curl --silent --show-error --no-buffer -X POST "$PRODUCTION_URL/api/v1/ai/chat/stream" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Reply with exactly: stream ok"}]}' -D stream.headers -o stream.txt -w '%{http_code}')
+            HTTP_CODE=$(curl --silent --show-error --no-buffer -X POST "$PRODUCTION_URL/api/v1/ai/chat/stream" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly: stream ok\"}]}" -D stream.headers -o stream.txt -w '%{http_code}')
+            echo "Production streaming chat model: $MODEL"
             echo "Production streaming chat HTTP status (attempt $i/20): $HTTP_CODE"
             echo "Response headers:"
             cat stream.headers
